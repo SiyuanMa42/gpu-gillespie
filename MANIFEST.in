@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include requirements.txt
+include setup.py
+recursive-include gpu_gillespie *.py
+recursive-include gpu_gillespie/examples *.py
+recursive-include docs *.md *.rst
+prune tests
+prune __pycache__
+prune *.pyc
