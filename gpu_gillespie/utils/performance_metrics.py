@@ -7,6 +7,7 @@ import psutil
 import numpy as np
 from typing import Dict, Optional
 import threading
+from typing import Dict, List
 
 try:
     import pynvml
