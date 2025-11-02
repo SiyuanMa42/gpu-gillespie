@@ -34,3 +34,16 @@ jobs:
       run: |
         conda install pytest
         pytest gpu_gillespie/tests -v
+    - name: Install conda-build and anaconda-client
+      run: |
+        conda install conda-build anaconda-client
+
+    - name: Build conda package
+      run: |
+        conda-build gpu_gillespie/conda-recipe
+
+    - name: Upload package to Anaconda Cloud
+      env:
+        ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+      run: |
+        anaconda --token $ANACONDA_API_TOKEN upload /usr/share/miniconda/conda-bld/linux-64/*.tar.bz2 --user <your-conda-username>
