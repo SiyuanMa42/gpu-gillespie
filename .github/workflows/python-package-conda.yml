@@ -40,10 +40,11 @@ jobs:
 
     - name: Build conda package
       run: |
-        conda-build gpu_gillespie/conda-recipe
+        mkdir -p conda-bld
+        conda build conda/ -c conda-forge -c nvidia
 
-    - name: Upload package to Anaconda Cloud
+    - name: Upload to Anaconda Cloud 
       env:
         ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
       run: |
-        anaconda --token $ANACONDA_API_TOKEN upload /usr/share/miniconda/conda-bld/linux-64/*.tar.bz2 --user <your-conda-username>
+        anaconda upload conda-bld/linux-64/*.tar.bz2

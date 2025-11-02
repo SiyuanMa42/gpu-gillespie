@@ -116,3 +116,11 @@ release-check:
 release: release-check build
 	@echo "Release package built successfully!"
 	@echo "Run 'make upload' to publish to PyPI"
+
+conda-build:
+    conda build conda/
+
+conda-upload:
+    anaconda upload conda-bld/linux-64/gpu-gillespie-*.tar.bz2
+
+conda-all: conda-build conda-upload

@@ -1,0 +1,61 @@
+{% set name = "gpu-gillespie" %}
+{% set version = "1.0.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: {{ PYTHON }} -m pip install . -vv
+  skip: True  # [not linux64]
+
+requirements:
+  host:
+    - python >=3.7
+    - pip
+    - setuptools >=45
+    - wheel
+    - setuptools_scm >=6.2
+    - cuda-toolkit >=11.0
+    - cudnn
+  run:
+    - python >=3.7
+    - numpy >=1.19.0
+    - scipy >=1.6.0 
+    - matplotlib >=3.3.0
+    - pandas >=1.2.0
+    - numba >=0.56.0
+    - numba-cuda >=0.1.0
+    - psutil >=5.8.0
+    - seaborn >=0.11.0
+    - plotly >=5.0.0
+
+test:
+  imports:
+    - gpu_gillespie
+    - gpu_gillespie.core
+    - gpu_gillespie.models
+    - gpu_gillespie.utils
+  requires:
+    - pytest
+  commands:
+    - pytest -v gpu_gillespie/tests
+
+about:
+  home: https://github.com/gpu-gillespie/gpu-gillespie
+  license: MIT
+  license_file: LICENSE
+  summary: High-performance GPU-accelerated Gillespie stochastic simulation algorithms
+  description: |
+    A Python package for accelerating Gillespie stochastic simulation algorithms using GPU parallel computing. 
+    Built for computational biologists, systems biologists, and researchers working with stochastic chemical kinetics.
+  dev_url: https://github.com/gpu-gillespie/gpu-gillespie
+  doc_url: https://gpu-gillespie.readthedocs.io/
+
+extra:
+  recipe-maintainers:
+    - your-github-username
