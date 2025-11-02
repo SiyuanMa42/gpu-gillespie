@@ -19,7 +19,10 @@ python_code_abstract.png
 requirements.txt
 setup.py
 .github/workflows/python-package-conda.yml
+.github/workflows/python-publish.yml
 conda/meta.yaml
+dist/gpu_gillespie-1.0.0-py3-none-any.whl
+dist/gpu_gillespie-1.0.0.tar.gz
 gpu_gillespie/__init__.py
 gpu_gillespie/cli.py
 gpu_gillespie.egg-info/PKG-INFO
