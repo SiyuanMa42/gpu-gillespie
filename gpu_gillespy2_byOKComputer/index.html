@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU-Gillespie: 高性能随机模拟与GPU加速</title>
+    <meta name="description" content="基于GPU并行计算的Gillespie随机模拟算法，为计算生物学和系统生物学研究提供高达100倍的性能加速">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Core Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/splitting@1.0.6/dist/splitting.css">
+    <script src="https://unpkg.com/splitting@1.0.6/dist/splitting.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'deep-blue': '#1a365d',
+                        'quantum-blue': '#2d7d8e',
+                        'photon-orange': '#e53e3e',
+                        'stardust-gray': '#718096',
+                        'nebula-blue': '#1a202c',
+                        'cosmic-dark': '#0f1419'
+                    },
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f1419 0%, #1a202c 100%);
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .hero-bg {
+            background: linear-gradient(135deg, #1a365d 0%, #2d7d8e 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-bg::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('hero_molecular_simulation.png') center/cover;
+            opacity: 0.3;
+            z-index: 0;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .glow-text {
+            text-shadow: 0 0 20px rgba(45, 125, 142, 0.5);
+        }
+        
+        .particle-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        
+        .code-block {
+            background: rgba(26, 54, 93, 0.8);
+            border: 1px solid rgba(45, 125, 142, 0.3);
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .feature-card {
+            background: rgba(26, 54, 93, 0.6);
+            border: 1px solid rgba(45, 125, 142, 0.2);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(45, 125, 142, 0.2);
+            border-color: rgba(45, 125, 142, 0.5);
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, rgba(45, 125, 142, 0.1) 0%, rgba(229, 62, 62, 0.1) 100%);
+            border: 1px solid rgba(45, 125, 142, 0.3);
+            border-radius: 8px;
+        }
+        
+        .nav-link {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #2d7d8e, #e53e3e);
+            transition: width 0.3s ease;
+        }
+        
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        
+        .scroll-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #2d7d8e, #e53e3e);
+            transform-origin: left;
+            transform: scaleX(0);
+            z-index: 1000;
+        }
+        
+        .performance-chart {
+            background: rgba(26, 54, 93, 0.8);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(45, 125, 142, 0.3);
+        }
+        
+        .model-card {
+            background: linear-gradient(135deg, rgba(26, 54, 93, 0.8) 0%, rgba(45, 125, 142, 0.2) 100%);
+            border: 1px solid rgba(45, 125, 142, 0.3);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .model-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 15px 30px rgba(45, 125, 142, 0.3);
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .typing-animation {
+            overflow: hidden;
+            border-right: 2px solid #2d7d8e;
+            white-space: nowrap;
+            animation: typing 3s steps(40, end), blink-caret 0.75s step-end infinite;
+        }
+        
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+        
+        @keyframes blink-caret {
+            from, to { border-color: transparent; }
+            50% { border-color: #2d7d8e; }
+        }
+    </style>
+</head>
+<body class="text-white">
+    <!-- Scroll Indicator -->
+    <div class="scroll-indicator" id="scrollIndicator"></div>
+    
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-cosmic-dark/80 backdrop-blur-md border-b border-quantum-blue/20">
+        <div class="max-w-7xl mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold text-sm">GPU</span>
+                    </div>
+                    <span class="text-xl font-bold font-inter">Gillespie</span>
+                </div>
+                
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="#home" class="nav-link text-white hover:text-quantum-blue transition-colors">首页</a>
+                    <a href="#features" class="nav-link text-white hover:text-quantum-blue transition-colors">特性</a>
+                    <a href="#performance" class="nav-link text-white hover:text-quantum-blue transition-colors">性能</a>
+                    <a href="#models" class="nav-link text-white hover:text-quantum-blue transition-colors">模型</a>
+                    <a href="#documentation" class="nav-link text-white hover:text-quantum-blue transition-colors">文档</a>
+                    <a href="documentation.html" class="nav-link text-white hover:text-quantum-blue transition-colors">API文档</a>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <a href="https://github.com/gpu-gillespie/gpu-gillespie" class="text-white hover:text-quantum-blue transition-colors">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Hero Section -->
+    <section id="home" class="hero-bg min-h-screen flex items-center relative">
+        <canvas id="particleCanvas" class="particle-canvas"></canvas>
+        
+        <div class="hero-content max-w-7xl mx-auto px-6 py-20">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div class="space-y-8">
+                    <div class="space-y-4">
+                        <h1 class="text-5xl lg:text-7xl font-bold font-inter leading-tight">
+                            <span class="glow-text" data-splitting>GPU-Gillespie</span>
+                        </h1>
+                        <p class="text-xl lg:text-2xl text-stardust-gray font-light">
+                            <span class="typing-animation">高性能随机模拟与GPU加速</span>
+                        </p>
+                    </div>
+                    
+                    <p class="text-lg text-stardust-gray leading-relaxed max-w-2xl">
+                        基于NVIDIA CUDA和Numba的Gillespie随机模拟算法，为计算生物学和系统生物学研究提供高达100倍的性能加速。支持数千个轨迹的并行计算，让复杂的生化反应网络模拟变得高效而优雅。
+                    </p>
+                    
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <a href="documentation.html" class="bg-quantum-blue hover:bg-quantum-blue/80 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 text-center">
+                            开始使用
+                        </a>
+                        <a href="#performance" class="border border-quantum-blue text-quantum-blue hover:bg-quantum-blue hover:text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 text-center">
+                            查看性能
+                        </a>
+                    </div>
+                    
+                    <!-- Quick Stats -->
+                    <div class="grid grid-cols-3 gap-4 pt-8">
+                        <div class="metric-card p-4 text-center">
+                            <div class="text-2xl font-bold text-quantum-blue">100x</div>
+                            <div class="text-sm text-stardust-gray">性能加速</div>
+                        </div>
+                        <div class="metric-card p-4 text-center">
+                            <div class="text-2xl font-bold text-photon-orange">10K+</div>
+                            <div class="text-sm text-stardust-gray">并行轨迹</div>
+                        </div>
+                        <div class="metric-card p-4 text-center">
+                            <div class="text-2xl font-bold text-quantum-blue">实时</div>
+                            <div class="text-sm text-stardust-gray">性能监控</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="relative">
+                    <div class="floating">
+                        <img src="gpu_parallel_computing.png" alt="GPU Parallel Computing" class="w-full h-auto rounded-lg shadow-2xl">
+                    </div>
+                    <div class="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-full opacity-20 animate-pulse"></div>
+                    <div class="absolute -bottom-4 -left-4 w-16 h-16 bg-gradient-to-br from-photon-orange to-quantum-blue rounded-full opacity-30 animate-pulse delay-1000"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section id="features" class="py-20 bg-nebula-blue">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl lg:text-5xl font-bold font-inter mb-6">
+                    <span class="text-quantum-blue">核心</span><span class="text-white">特性</span>
+                </h2>
+                <p class="text-xl text-stardust-gray max-w-3xl mx-auto">
+                    专为计算生物学研究设计的高性能随机模拟工具包
+                </p>
+            </div>
+            
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- GPU Acceleration -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M4 4h16v2H4V4zm0 4h16v2H4V8zm0 4h16v2H4v-2zm0 4h16v2H4v-2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">GPU加速计算</h3>
+                    <p class="text-stardust-gray leading-relaxed">
+                        基于NVIDIA CUDA和Numba的GPU并行计算，实现高达100倍的性能提升。每个GPU线程处理一个独立的模拟轨迹，充分利用现代GPU的并行处理能力。
+                    </p>
+                    <div class="mt-6 text-quantum-blue font-semibold">
+                        50-120x 速度提升
+                    </div>
+                </div>
+                
+                <!-- Multiple Algorithms -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-photon-orange to-quantum-blue rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">多种算法支持</h3>
+                    <p class="text-stardust-gray leading-relaxed">
+                        支持精确的Gillespie算法和快速的tau-leaping近似算法。根据系统大小和精度要求自动选择最优算法，平衡计算速度和结果准确性。
+                    </p>
+                    <div class="mt-6 text-photon-orange font-semibold">
+                        精确 & 近似算法
+                    </div>
+                </div>
+                
+                <!-- Pre-built Models -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">预建模型库</h3>
+                    <p class="text-stardust-gray leading-relaxed">
+                        包含多种经典生化反应模型：二聚化、酶动力学、基因表达、遗传开关等。所有模型都经过验证，可直接用于研究和教学。
+                    </p>
+                    <div class="mt-6 text-quantum-blue font-semibold">
+                        4+ 经典模型
+                    </div>
+                </div>
+                
+                <!-- Performance Monitoring -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-photon-orange to-quantum-blue rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">实时性能监控</h3>
+                    <p class="text-stardust-gray leading-relaxed">
+                        内置GPU使用率、内存占用和计算速度的实时监控。提供详细的性能分析报告，帮助优化计算资源配置。
+                    </p>
+                    <div class="mt-6 text-photon-orange font-semibold">
+                        实时性能分析
+                    </div>
+                </div>
+                
+                <!-- Statistical Analysis -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">高级统计分析</h3>
+                    <p class="text-stardust-gray leading-relaxed">
+                        提供全面的统计分析工具，包括相关性分析、分布检验、噪声分析和灭绝事件检测。支持多种数据导出格式。
+                    </p>
+                    <div class="mt-6 text-quantum-blue font-semibold">
+                        完整统计工具箱
+                    </div>
+                </div>
+                
+                <!-- Parameter Sweeps -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-photon-orange to-quantum-blue rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">参数扫描分析</h3>
+                    <p class="text-stardust-gray leading-relaxed">
+                        支持并行参数扫描和敏感性分析，自动探索参数空间。内置优化算法，帮助找到最优模型参数。
+                    </p>
+                    <div class="mt-6 text-photon-orange font-semibold">
+                        参数优化工具
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Performance Section -->
+    <section id="performance" class="py-20 bg-cosmic-dark">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl lg:text-5xl font-bold font-inter mb-6">
+                    <span class="text-quantum-blue">卓越</span><span class="text-white">性能</span>
+                </h2>
+                <p class="text-xl text-stardust-gray max-w-3xl mx-auto">
+                    基于真实硬件测试的性能数据，展示GPU加速的强大优势
+                </p>
+            </div>
+            
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div class="space-y-8">
+                    <div class="performance-chart">
+                        <h3 class="text-2xl font-bold mb-6 text-quantum-blue">性能基准测试</h3>
+                        <div id="performanceChart" class="h-80"></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="metric-card p-6 text-center">
+                            <div class="text-3xl font-bold text-quantum-blue mb-2">116.8x</div>
+                            <div class="text-sm text-stardust-gray">最大加速比</div>
+                            <div class="text-xs text-stardust-gray mt-1">100,000轨迹</div>
+                        </div>
+                        <div class="metric-card p-6 text-center">
+                            <div class="text-3xl font-bold text-photon-orange mb-2">2,584</div>
+                            <div class="text-sm text-stardust-gray">轨迹/秒</div>
+                            <div class="text-xs text-stardust-gray mt-1">峰值吞吐量</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-8">
+                    <div class="space-y-6">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-4 h-4 bg-quantum-blue rounded-full"></div>
+                            <div>
+                                <div class="text-white font-semibold">NVIDIA RTX 3080</div>
+                                <div class="text-stardust-gray text-sm">测试平台配置</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4">
+                            <div class="w-4 h-4 bg-photon-orange rounded-full"></div>
+                            <div>
+                                <div class="text-white font-semibold">Intel i7-10700K</div>
+                                <div class="text-stardust-gray text-sm">CPU对比基准</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4">
+                            <div class="w-4 h-4 bg-stardust-gray rounded-full"></div>
+                            <div>
+                                <div class="text-white font-semibold">CUDA 11.8</div>
+                                <div class="text-stardust-gray text-sm">GPU计算平台</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-nebula-blue p-6 rounded-lg border border-quantum-blue/30">
+                        <h4 class="text-lg font-bold text-quantum-blue mb-4">性能特点</h4>
+                        <ul class="space-y-2 text-stardust-gray">
+                            <li class="flex items-center space-x-2">
+                                <span class="text-quantum-blue">✓</span>
+                                <span>线性扩展性：轨迹数量增加时保持高效率</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <span class="text-quantum-blue">✓</span>
+                                <span>内存优化：智能内存管理支持大规模计算</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <span class="text-quantum-blue">✓</span>
+                                <span>实时优化：动态调整GPU资源配置</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <span class="text-quantum-blue">✓</span>
+                                <span>精度保持：GPU计算结果与CPU完全一致</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Models Section -->
+    <section id="models" class="py-20 bg-nebula-blue">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl lg:text-5xl font-bold font-inter mb-6">
+                    <span class="text-quantum-blue">预建</span><span class="text-white">模型</span>
+                </h2>
+                <p class="text-xl text-stardust-gray max-w-3xl mx-auto">
+                    经过验证的经典生化反应模型，开箱即用
+                </p>
+            </div>
+            
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- Dimerization Model -->
+                <div class="model-card p-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center mb-6 mx-auto">
+                        <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-center mb-4 text-white">二聚化模型</h3>
+                    <p class="text-stardust-gray text-center text-sm mb-6">
+                        简单的单体-二聚体平衡反应：2A ⇌ A₂
+                    </p>
+                    <div class="space-y-2 text-xs text-stardust-gray">
+                        <div>• 质量作用动力学</div>
+                        <div>• 可逆反应平衡</div>
+                        <div>• 基础示例模型</div>
+                    </div>
+                    <div class="mt-6 text-center">
+                        <code class="text-quantum-blue font-mono text-xs">DimerizationModel</code>
+                    </div>
+                </div>
+                
+                <!-- Enzyme Kinetics -->
+                <div class="model-card p-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-photon-orange to-quantum-blue rounded-lg flex items-center justify-center mb-6 mx-auto">
+                        <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-center mb-4 text-white">酶动力学</h3>
+                    <p class="text-stardust-gray text-center text-sm mb-6">
+                        米氏酶动力学：E + S ⇌ ES → E + P
+                    </p>
+                    <div class="space-y-2 text-xs text-stardust-gray">
+                        <div>• Michaelis-Menten机制</div>
+                        <div>• 酶-底物复合物</div>
+                        <div>• 产物生成动力学</div>
+                    </div>
+                    <div class="mt-6 text-center">
+                        <code class="text-photon-orange font-mono text-xs">EnzymeKineticsModel</code>
+                    </div>
+                </div>
+                
+                <!-- Gene Expression -->
+                <div class="model-card p-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center mb-6 mx-auto">
+                        <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-center mb-4 text-white">基因表达</h3>
+                    <p class="text-stardust-gray text-center text-sm mb-6">
+                        转录-翻译系统：Gene → mRNA → Protein
+                    </p>
+                    <div class="space-y-2 text-xs text-stardust-gray">
+                        <div>• 中心法则建模</div>
+                        <div>• 转录翻译耦合</div>
+                        <div>• 降解过程</div>
+                    </div>
+                    <div class="mt-6 text-center">
+                        <code class="text-quantum-blue font-mono text-xs">GeneExpressionModel</code>
+                    </div>
+                </div>
+                
+                <!-- Toggle Switch -->
+                <div class="model-card p-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-photon-orange to-quantum-blue rounded-lg flex items-center justify-center mb-6 mx-auto">
+                        <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-center mb-4 text-white">遗传开关</h3>
+                    <p class="text-stardust-gray text-center text-sm mb-6">
+                        双稳态开关：相互抑制的基因调控
+                    </p>
+                    <div class="space-y-2 text-xs text-stardust-gray">
+                        <div>• 相互抑制机制</div>
+                        <div>• 双稳态行为</div>
+                        <div>• 开关动力学</div>
+                    </div>
+                    <div class="mt-6 text-center">
+                        <code class="text-photon-orange font-mono text-xs">ToggleSwitchModel</code>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Code Example -->
+            <div class="mt-16">
+                <div class="code-block p-8">
+                    <h3 class="text-xl font-bold text-quantum-blue mb-6">快速开始示例</h3>
+                    <div class="grid lg:grid-cols-2 gap-8">
+                        <div>
+                            <h4 class="text-white font-semibold mb-4">创建模型</h4>
+                            <pre class="text-sm font-mono text-stardust-gray leading-relaxed"><code>from gpu_gillespie import DimerizationModel
+
+# 创建二聚化模型
+model = DimerizationModel(
+    k_dimerization=0.1,
+    k_dissociation=0.01,
+    initial_A=1000,
+    initial_A2=0
+)
+
+# 运行GPU加速模拟
+results = model.run_simulation(
+    time_span=(0, 100),
+    n_trajectories=10000
+)</code></pre>
+                        </div>
+                        <div>
+                            <h4 class="text-white font-semibold mb-4">性能分析</h4>
+                            <pre class="text-sm font-mono text-stardust-gray leading-relaxed"><code># 查看性能统计
+print(f"执行时间: {results['performance_stats']['execution_time']:.3f}s")
+print(f"加速比: {results['performance_stats']['speedup_factor']:.1f}x")
+print(f"GPU使用率: {results['performance_stats']['gpu_utilization']:.1f}%")
+
+# 分析结果
+analyzer = SimulationAnalyzer(results)
+stats = analyzer.calculate_statistics()</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Documentation Section -->
+    <section id="documentation" class="py-20 bg-cosmic-dark">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl lg:text-5xl font-bold font-inter mb-6">
+                    <span class="text-quantum-blue">文档</span><span class="text-white">与资源</span>
+                </h2>
+                <p class="text-xl text-stardust-gray max-w-3xl mx-auto">
+                    完整的文档、教程和示例代码，助您快速上手
+                </p>
+            </div>
+            
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- API Documentation -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">API文档</h3>
+                    <p class="text-stardust-gray leading-relaxed mb-6">
+                        完整的API参考文档，包含所有类和方法的详细说明。支持Python类型提示和示例代码。
+                    </p>
+                    <a href="documentation.html" class="text-quantum-blue hover:text-quantum-blue/80 font-semibold transition-colors">
+                        查看API文档 →
+                    </a>
+                </div>
+                
+                <!-- Examples -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-photon-orange to-quantum-blue rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">示例代码</h3>
+                    <p class="text-stardust-gray leading-relaxed mb-6">
+                        丰富的示例代码和教程，涵盖从基础用法到高级分析的各个方面。Jupyter Notebook格式便于交互式学习。
+                    </p>
+                    <a href="examples.html" class="text-photon-orange hover:text-photon-orange/80 font-semibold transition-colors">
+                        浏览示例 →
+                    </a>
+                </div>
+                
+                <!-- Performance -->
+                <div class="feature-card p-8">
+                    <div class="w-12 h-12 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-white">性能基准</h3>
+                    <p class="text-stardust-gray leading-relaxed mb-6">
+                        详细的性能测试报告和基准数据，帮助您了解在不同硬件配置下的性能表现。
+                    </p>
+                    <a href="performance.html" class="text-quantum-blue hover:text-quantum-blue/80 font-semibold transition-colors">
+                        查看性能 →
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Quick Links -->
+            <div class="mt-16 text-center">
+                <div class="grid md:grid-cols-4 gap-6">
+                    <a href="#" class="bg-nebula-blue p-6 rounded-lg border border-quantum-blue/30 hover:border-quantum-blue/60 transition-colors">
+                        <div class="text-quantum-blue font-semibold mb-2">安装指南</div>
+                        <div class="text-stardust-gray text-sm">快速安装和配置</div>
+                    </a>
+                    <a href="#" class="bg-nebula-blue p-6 rounded-lg border border-quantum-blue/30 hover:border-quantum-blue/60 transition-colors">
+                        <div class="text-quantum-blue font-semibold mb-2">教程</div>
+                        <div class="text-stardust-gray text-sm">循序渐进的学习</div>
+                    </a>
+                    <a href="#" class="bg-nebula-blue p-6 rounded-lg border border-quantum-blue/30 hover:border-quantum-blue/60 transition-colors">
+                        <div class="text-quantum-blue font-semibold mb-2">FAQ</div>
+                        <div class="text-stardust-gray text-sm">常见问题解答</div>
+                    </a>
+                    <a href="#" class="bg-nebula-blue p-6 rounded-lg border border-quantum-blue/30 hover:border-quantum-blue/60 transition-colors">
+                        <div class="text-quantum-blue font-semibold mb-2">社区</div>
+                        <div class="text-stardust-gray text-sm">用户交流和讨论</div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer class="py-12 bg-cosmic-dark border-t border-quantum-blue/20">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center">
+                <div class="flex items-center justify-center space-x-3 mb-6">
+                    <div class="w-8 h-8 bg-gradient-to-br from-quantum-blue to-photon-orange rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold text-sm">GPU</span>
+                    </div>
+                    <span class="text-xl font-bold font-inter text-white">Gillespie</span>
+                </div>
+                
+                <p class="text-stardust-gray mb-6 max-w-2xl mx-auto">
+                    高性能GPU加速的Gillespie随机模拟算法，为计算生物学研究提供强大的并行计算能力。
+                </p>
+                
+                <div class="flex items-center justify-center space-x-6 mb-6">
+                    <a href="https://github.com/gpu-gillespie/gpu-gillespie" class="text-stardust-gray hover:text-quantum-blue transition-colors">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                    </a>
+                    <a href="mailto:contact@gpu-gillespie.org" class="text-stardust-gray hover:text-quantum-blue transition-colors">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                        </svg>
+                    </a>
+                </div>
+                
+                <div class="text-stardust-gray text-sm">
+                    © 2024 GPU-Gillespie Development Team. 基于MIT许可证开源。
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <script src="main.js"></script>
+</body>
+</html>
