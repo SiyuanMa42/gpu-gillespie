@@ -40,7 +40,7 @@ Examples:
     parser.add_argument(
         '--version', 
         action='version', 
-        version='GPU-Gillespie 1.0.0'
+        version='GPU-Gillespie 1.0.1'
     )
     
     parser.add_argument(

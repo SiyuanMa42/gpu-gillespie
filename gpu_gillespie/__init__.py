@@ -5,7 +5,7 @@ A Python package for accelerating Gillespie stochastic simulation algorithms
 using GPU parallel computing. Built on top of Gillespy2 with Numba CUDA support.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __author__ = "GPU-Gillespie Development Team"
 __email__ = "contact@gpu-gillespie.org"
 

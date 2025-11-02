@@ -19,7 +19,7 @@ def read_requirements():
 
 setup(
     name="gpu-gillespie",
-    version="1.0.0",
+    version="1.0.1",
     author="GPU-Gillespie Development Team",
     author_email="contact@gpu-gillespie.org",
     description="High-performance GPU-accelerated Gillespie stochastic simulation algorithms",
