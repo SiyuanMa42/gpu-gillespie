@@ -1,0 +1,16 @@
+name: gpu-gillespie
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - scipy
+  - numba
+  # 如果需要 GPU 支持，取消以下两行注释并根据你的 CUDA 版本调整 cudatoolkit 版本
+  - cudatoolkit=11.8
+  - cudnn
+  - pip:
+    - -r requirements.txt
+    - -e .
