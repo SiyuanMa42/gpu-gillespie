@@ -3,7 +3,6 @@ Setup script for GPU-Gillespie package
 """
 
 from setuptools import setup, find_packages
-import os
 
 
 # Read README file
@@ -26,11 +25,11 @@ setup(
     description="High-performance GPU-accelerated Gillespie stochastic simulation algorithms",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
-    url="https://github.com/gpu-gillespie/gpu-gillespie",
+    url="https://github.com/SiyuanMa42/gpu-gillespie",
     project_urls={
-        "Bug Tracker": "https://github.com/gpu-gillespie/gpu-gillespie/issues",
+        "Bug Tracker": "https://github.com/SiyuanMa42/gpu-gillespie/issues",
         "Documentation": "https://gpu-gillespie.readthedocs.io/",
-        "Source": "https://github.com/gpu-gillespie/gpu-gillespie",
+        "Source": "https://github.com/SiyuanMa42/gpu-gillespie",
     },
     packages=find_packages(),
     classifiers=[

@@ -61,10 +61,10 @@ examples = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/gpu-gillespie/gpu-gillespie"
+Homepage = "https://github.com/SiyuanMa42/gpu-gillespie"
 Documentation = "https://gpu-gillespie.readthedocs.io/"
-Repository = "https://github.com/gpu-gillespie/gpu-gillespie.git"
-"Bug Tracker" = "https://github.com/gpu-gillespie/gpu-gillespie/issues"
+Repository = "https://github.com/SiyuanMa42/gpu-gillespie.git"
+"Bug Tracker" = "https://github.com/SiyuanMa42/gpu-gillespie/issues"
 
 [project.scripts]
 gpu-gillespie = "gpu_gillespie.cli:main"
