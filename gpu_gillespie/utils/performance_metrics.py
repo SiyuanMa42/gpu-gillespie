@@ -5,7 +5,6 @@ Performance monitoring and metrics collection for GPU simulations
 import time
 import psutil
 import numpy as np
-from typing import Dict, Optional
 import threading
 from typing import Dict, List
 
@@ -39,11 +38,13 @@ class PerformanceMonitor:
         self.gpu_utilization = 0
         self.gpu_memory = 0
         self._nvml_initialized = False
+        self._gpu_handle = None  # GPU handle for NVML operations
 
     def _init_nvml(self):
         if HAS_NVML and not self._nvml_initialized:
             try:
                 pynvml.nvmlInit()
+                self._gpu_handle = pynvml.nvmlDeviceGetHandleByIndex(0)
                 self._nvml_initialized = True
             except pynvml.NVMLError_LibraryNotFound:
                 # 在没有 NVIDIA 驱动的系统上优雅降级
@@ -157,20 +158,21 @@ class PerformanceMonitor:
                 gpu_utilization = 0
                 gpu_memory_usage = 0
 
-                if HAS_NVML:
+                if HAS_NVML and self._nvml_initialized and self._gpu_handle:
                     try:
-                        gpu_utilization = pynvml.nvmlDeviceGetUtilizationRates(GPU_HANDLE).gpu
-                        gpu_memory_info = pynvml.nvmlDeviceGetMemoryInfo(GPU_HANDLE)
+                        gpu_utilization = pynvml.nvmlDeviceGetUtilizationRates(self._gpu_handle).gpu
+                        gpu_memory_info = pynvml.nvmlDeviceGetMemoryInfo(self._gpu_handle)
                         gpu_memory_usage = gpu_memory_info.used
-                    except:
-                        pass  # GPU monitoring failed
+                    except Exception as e:
+                        print(f"GPU monitoring error: {e}")
 
                 # Store data
-                self.performance_data["cpu_percentages"].append(cpu_percent)
-                self.performance_data["memory_usages"].append(memory_usage)
-                self.performance_data["gpu_utilizations"].append(gpu_utilization)
-                self.performance_data["gpu_memory_usages"].append(gpu_memory_usage)
-                self.performance_data["timestamps"].append(time.time() - self.start_time)
+                if self.start_time is not None:
+                    self.performance_data["cpu_percentages"].append(cpu_percent)
+                    self.performance_data["memory_usages"].append(memory_usage)
+                    self.performance_data["gpu_utilizations"].append(gpu_utilization)
+                    self.performance_data["gpu_memory_usages"].append(gpu_memory_usage)
+                    self.performance_data["timestamps"].append(time.time() - self.start_time)
 
             except Exception as e:
                 print(f"Monitoring error: {e}")
@@ -192,16 +194,20 @@ class PerformanceMonitor:
         """
         # Typical speedup factors for different types of simulations
         # These are empirical estimates based on literature
-        base_speedup = 50  # Conservative base speedup estimate
+        base_speedup = 50.0  # Conservative base speedup estimate
 
-        # Adjust based on available performance data
-        if hasattr(self, "avg_gpu_utilization") and self.avg_gpu_utilization > 80:
+        # Check GPU utilization from performance data
+        gpu_utils = self.performance_data.get("gpu_utilizations", [])
+        avg_gpu_util = float(np.mean(gpu_utils)) if gpu_utils else 0.0
+
+        # Adjust based on GPU utilization
+        if avg_gpu_util > 80.0:
             # High GPU utilization suggests good parallelization
             speedup_factor = base_speedup * 1.5
         else:
             speedup_factor = base_speedup
 
-        return gpu_time * speedup_factor
+        return float(gpu_time * speedup_factor)
 
 
 class BenchmarkSuite:
@@ -312,8 +318,8 @@ class BenchmarkSuite:
         if len(configurations) < 2:
             return 0.0
 
-        n_traj_list = [c["n_trajectories"] for c in configurations]
-        throughput_list = [c["trajectories_per_second"] for c in configurations]
+        n_traj_list = [float(c["n_trajectories"]) for c in configurations]
+        throughput_list = [float(c["trajectories_per_second"]) for c in configurations]
 
         # Calculate scaling efficiency
         # Perfect scaling would have constant throughput per trajectory
@@ -321,10 +327,10 @@ class BenchmarkSuite:
         for i in range(1, len(configurations)):
             n_ratio = n_traj_list[i] / n_traj_list[i - 1]
             t_ratio = throughput_list[i] / throughput_list[i - 1]
-            scaling_efficiency = t_ratio / n_ratio
+            scaling_efficiency = float(t_ratio / n_ratio)
             scaling_factors.append(scaling_efficiency)
 
-        return np.mean(scaling_factors) if scaling_factors else 0.0
+        return float(np.mean(scaling_factors)) if scaling_factors else 0.0
 
     def generate_report(self) -> str:
         """
@@ -355,7 +361,7 @@ class BenchmarkSuite:
                 report.append("")
 
             summary = benchmark["summary_stats"]
-            report.append(f"  Summary Statistics:")
+            report.append("  Summary Statistics")
             report.append(f"    Average Speedup: {summary['avg_speedup']:.1f}x")
             report.append(f"    Maximum Speedup: {summary['max_speedup']:.1f}x")
             report.append(f"    Peak Throughput: {summary['max_throughput']:.1f} traj/s")
