@@ -1,1 +1,0 @@
-"""Pre-defined biochemical reaction models"""
